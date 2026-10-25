@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#14532d"/>
+  <rect x="96" y="130" width="320" height="250"
+        rx="28" fill="#ffffff"/>
+  <path d="M96 158 Q96 130 124 130 H388 Q416 130 416 158
+           L256 274 Z" fill="#bbf7d0"/>
+  <path d="M96 170 L256 286 L416 170"
+        fill="none" stroke="#14532d" stroke-width="18"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="430" font-size="66" font-weight="800"
+        text-anchor="middle" fill="#ffffff"
+        font-family="Arial, sans-serif">EMS</text>
+</svg>
