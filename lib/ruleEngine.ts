@@ -14,7 +14,7 @@ export interface RuleInput {
   pidChecked: boolean;
   amount: string;
   currency: "KRW" | "USD" | "EUR";
-  b2cStatus: "unknown" | "B2C" | "B2B";
+  b2cStatus: "unknown" | "B2C" | "none B2C";
 }
 
 export interface RuleAction {
@@ -29,6 +29,9 @@ const EXCHANGE_RATES = {
   EUR_TO_KRW: 1485,
   USD_TO_EUR: 0.89,
 };
+
+// 독일·네덜란드·스웨덴
+const DESIGNATED_COUNTRIES = ["DE", "NL", "SE"];
 
 // 상품 가액을 유로로 환산
 function convertToEUR(
@@ -88,6 +91,9 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
 
   const isEU = country.region === "EU";
 
+  const isDesignatedCountry =
+    DESIGNATED_COUNTRIES.includes(input.countryCode);
+
   // --------------------------------------------------
   // 1단계: EU 국가의 B2C 여부 확인
   // --------------------------------------------------
@@ -104,15 +110,10 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
   }
 
   // --------------------------------------------------
-  // 2단계: B2C 여부 및 상품 가액 확인
+  // 2단계: EU 국가의 B2C 접수 규칙
   // --------------------------------------------------
 
-  const isPIDCandidate =
-    isEU && input.b2cStatus === "B2C";
-
-  let amountInEUR: number | null = null;
-
-  if (isPIDCandidate) {
+  if (isEU && input.b2cStatus === "B2C") {
     if (!hasAmount) {
       return [
         {
@@ -124,9 +125,9 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
       ];
     }
 
-    amountInEUR = convertToEUR(value, input.currency);
+    const amountInEUR = convertToEUR(value, input.currency);
 
-    // 150유로 초과: 기존 접수 절차 적용
+    // 상품 가액이 €150 초과인 경우
     if (amountInEUR > 150) {
       actions.push({
         title: "PID 특별 판정 대상 아님",
@@ -135,13 +136,7 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
         type: "info",
       });
     } else {
-      // 150유로 이하: 지정 국가 여부 확인
-      const designatedCountries = ["DE", "NL", "SE"];
-
-      const isDesignatedCountry =
-        designatedCountries.includes(input.countryCode);
-
-      // PID 미입력은 접수 불가
+      // 상품 가액 €150 이하: PID 입력 여부 확인
       if (!input.pidChecked) {
         actions.push({
           title: "접수 불가: PID 입력 필요",
@@ -149,37 +144,54 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
             "고객에게 PID 입력을 요청한 후 재접수하도록 안내하세요.",
           type: "required",
         });
+      } else if (isDesignatedCountry) {
+        // 독일·네덜란드·스웨덴 B2C는 동일한 규칙
+        actions.push({
+          title: "PID 확인 완료: 접수 가능",
+          description:
+            "독일·네덜란드·스웨덴행 B2C 발송이며 PID 입력이 완료되었습니다. 기존 접수 요건도 확인하세요.",
+          type: "info",
+        });
       } else {
-        // PID 입력 완료
-        const needsPremium =
-          !isDesignatedCountry ||
-          (
-            input.countryCode === "DE" &&
-            amountInEUR >= 45
-          );
+        // 그 외 EU 국가 B2C
+        actions.push({
+          title: "프리미엄으로 접수",
+          description:
+            "독일·네덜란드·스웨덴 외의 EU 국가입니다. PID 입력이 완료되었으므로 프리미엄으로 접수하세요.",
+          type: "required",
+        });
+      }
+    }
+  }
 
-        if (needsPremium) {
-          let reason = "";
+  // --------------------------------------------------
+  // 3단계: 독일행 none B2C 접수 규칙
+  // --------------------------------------------------
 
-          if (!isDesignatedCountry) {
-            reason =
-              "독일·네덜란드·스웨덴 외의 EU 국가입니다.";
-          } else if (input.countryCode === "DE") {
-            reason =
-              "독일행 상품가액이 €45 이상입니다.";
-          }
+  if (isEU && input.b2cStatus === "none B2C") {
+    if (input.countryCode === "DE") {
+      if (!hasAmount) {
+        actions.push({
+          title: "상품 가액 입력 필요",
+          description:
+            "독일행 B2C가 아닌 발송의 프리미엄 접수 여부를 판단하려면 상품 가액을 입력하세요.",
+          type: "check",
+        });
+      } else {
+        const amountInEUR = convertToEUR(value, input.currency);
 
+        if (amountInEUR >= 45) {
           actions.push({
             title: "프리미엄으로 접수",
             description:
-              `${reason} PID 입력이 완료되었으므로 프리미엄으로 접수하세요.`,
+              `독일행 B2C가 아닌 발송이며 상품가액이 €45 이상입니다. 유로 환산액은 €${amountInEUR.toFixed(2)}입니다. 프리미엄으로 접수하세요.`,
             type: "required",
           });
         } else {
           actions.push({
-            title: "PID 확인 완료: 접수 가능",
+            title: "일반 접수 절차",
             description:
-              "지정 국가이며 PID 입력이 완료되었습니다. 기존 접수 요건도 확인하세요.",
+              `독일행 B2C가 아닌 발송이며 상품가액이 €45 미만입니다. 유로 환산액은 €${amountInEUR.toFixed(2)}입니다. 일반 접수 절차에 따라 진행하세요.`,
             type: "info",
           });
         }
@@ -188,7 +200,7 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
   }
 
   // --------------------------------------------------
-  // 3단계: 기존 국가별 규칙 적용
+  // 4단계: 기존 국가별 규칙 적용
   // --------------------------------------------------
 
   const countryRule = countryRules.find(
@@ -204,7 +216,7 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
     });
   } else {
     for (const rule of countryRule.rules) {
-      // PID는 위에서 새 판정 흐름으로 처리
+      // PID는 위에서 별도 처리
       if (rule.type === "pid") {
         continue;
       }
@@ -225,7 +237,8 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
           break;
 
         case "goods":
-          shouldApply = input.purpose === "상품 Merchandise";
+          shouldApply =
+            input.purpose === "상품 Merchandise";
           break;
 
         case "pidUnchecked":
@@ -246,7 +259,7 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
   }
 
   // --------------------------------------------------
-  // 4단계: 국가별 인보이스 조건
+  // 5단계: 국가별 인보이스 조건
   // --------------------------------------------------
 
   switch (country.needInvoice) {
@@ -289,7 +302,7 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
   }
 
   // --------------------------------------------------
-  // 5단계: 미국 자필 동의서
+  // 6단계: 미국 자필 동의서
   // --------------------------------------------------
 
   if (input.countryCode === "US") {
@@ -304,7 +317,7 @@ export function evaluateRules(input: RuleInput): RuleAction[] {
   }
 
   // --------------------------------------------------
-  // 6단계: 상품 가액 표시
+  // 7단계: 상품 가액 표시
   // --------------------------------------------------
 
   if (hasAmount) {

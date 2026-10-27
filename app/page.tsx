@@ -25,7 +25,7 @@ function formatAmount(value: number, currency: Currency) {
   }).format(value);
 }
 
-type B2CStatus = "unknown" | "B2C" | "B2B";
+type B2CStatus = "unknown" | "B2C" | "none B2C";
 
 export default function Home() {
   const [country, setCountry] = useState("");
@@ -42,6 +42,9 @@ export default function Home() {
   const [selectedNoticeIds, setSelectedNoticeIds] = useState<string[]>([]);
   const [generatedMessage, setGeneratedMessage] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+
+  // iOSS 가이드 팝업 관리
+  const [showIossGuide, setShowIossGuide] = useState(false);
 
   const openingNotice = `안녕하세요 고객님 우체국입니다
 금일 EMS 신청건 9시 반 - 10시 반 사이 방문드려 픽업 예정입니다`;
@@ -366,10 +369,29 @@ export default function Home() {
                   B2C 여부 확인 대상
                 </h3>
 
-                <p className="mt-2 text-sm leading-6 text-blue-800">
+              <div className="mt-2 text-sm leading-6 text-blue-800">
+                <p>
                   고객에게 발송 형태가 B2C인지 확인하세요.
                   확인 전에는 PID 적용 여부를 최종 판정할 수 없습니다.
                 </p>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <p>
+                    iOSS를 통해 사전 신고가 완료된 경우 B2C로 판단됩니다.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowIossGuide(true);
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-100 active:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                  >
+                    <span aria-hidden="true">ⓘ</span>
+                    iOSS 확인 방법
+                  </button>
+                </div>
+              </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
@@ -387,10 +409,10 @@ export default function Home() {
 
                   <button
                     type="button"
-                    onClick={() => setB2cStatus("B2B")}
-                    aria-pressed={b2cStatus === "B2B"}
+                    onClick={() => setB2cStatus("none B2C")}
+                    aria-pressed={b2cStatus === "none B2C"}
                     className={`min-w-0 rounded-lg border px-2 py-3 text-sm font-semibold sm:px-3 ${
-                      b2cStatus === "B2B"
+                      b2cStatus === "none B2C"
                         ? "border-blue-600 bg-blue-600 text-white"
                         : "border-blue-200 bg-white text-blue-800"
                     }`}
@@ -516,7 +538,7 @@ export default function Home() {
               <h2 className="mt-1 text-lg font-bold">확인할 조치</h2>
 
               <p className="mt-1 break-words text-sm text-slate-500">
-                {selectedCountry?.name} ({country}) · {purpose}
+                {selectedCountry?.name} {country}{purpose}
               </p>
             </div>
 
@@ -740,6 +762,60 @@ export default function Home() {
                 </button>
               </div>
             )}
+          </section>
+        </div>
+      )}
+            {/* iOSS 참고 이미지 팝업 */}
+      {showIossGuide && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowIossGuide(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ioss-guide-title"
+            className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* 팝업 제목 */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2
+                id="ioss-guide-title"
+                className="text-base font-bold text-slate-900"
+              >
+                iOSS 참고 자료
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => setShowIossGuide(false)}
+                aria-label="닫기"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-2xl text-slate-500 hover:bg-slate-100"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* 참고 이미지 */}
+            <div className="max-h-[60vh] overflow-auto p-2">
+              <img
+                src="/ems-helper/images/ioss-guide.jpg"
+                alt="iOSS 참고 자료"
+                className="mx-auto block h-auto w-full max-w-[280px] rounded-lg object-contain"
+              />
+            </div>
+
+            {/* 닫기 버튼 */}
+            <div className="border-t border-slate-200 px-4 py-3 text-right">
+              <button
+                type="button"
+                onClick={() => setShowIossGuide(false)}
+                className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+              >
+                확인
+              </button>
+            </div>
           </section>
         </div>
       )}
